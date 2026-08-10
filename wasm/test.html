@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WASM Test</title>
+</head>
+<body>
+    <h1>Testing WebAssembly Module</h1>
+    <div id="output">Loading...</div>
+
+    <script src="app.js"></script>
+    <script>
+        // this waits for the compiled c++ module to finish loading in the browser.
+        Module.onRuntimeInitialized = function() {
+            const output = document.getElementById("output");
+
+            // this creates a real instance of your c++ webLogAnalyzer class.
+            const analyzer = new Module.WebLogAnalyzer();
+
+            // this calls your actual compiled c++ processConnection function.
+            analyzer.processConnection("192.168.1.10", "2026-08-10 10:00", 443, false);
+            analyzer.processConnection("192.168.1.10", "2026-08-10 10:05", 22, true);
+
+            const result = analyzer.lookupIP("192.168.1.10");
+            const count = analyzer.getTrackedCount();
+
+            output.innerHTML =
+                "IP: " + result.ip + "<br>" +
+                "Risk Score: " + result.riskScore + "<br>" +
+                "Attempt Count: " + result.attemptCount + "<br>" +
+                "Tracked Count: " + count;
+        };
+    </script>
+</body>
+</html>
