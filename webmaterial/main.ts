@@ -40,7 +40,7 @@ let flaggedCount = 0;
 function loadWasmModule(): Promise<void> {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "/app.js";
+    script.src = import.meta.env.BASE_URL + "app.js";
     script.onload = () => {
       // @ts-expect-error - Module is created globally by the compiled app.js file.
       Module.onRuntimeInitialized = () => {
@@ -128,7 +128,7 @@ function setupAddConnection() {
     analyzer.processConnection(ip, timestamp, port, flagged);
 
     const endTime = performance.now();
-    const latency = (endTime - startTime).toFixed(3);
+    const latency = ((endTime - startTime) * 1000).toFixed(2);
 
     if (flagged) {
       flaggedCount++;
@@ -240,7 +240,13 @@ function setupPerformance() {
 // this runs once the page and the wasm module are both ready.
 async function init() {
   setupMatrixBackground();
-  await loadWasmModule();
+  try {
+    await loadWasmModule();
+  } catch (error) {
+    document.body.innerHTML = '<div style="padding: 40px; text-align: center; color: #F2B8B5; font-family: sans-serif;"><h2>Failed to load the application engine.</h2><p>Please refresh the page. If this keeps happening, check the browser console for details.</p></div>';
+    console.error(error);
+    return;
+  }
   setupTabs();
   setupAddConnection();
   setupLookup();
