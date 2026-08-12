@@ -2338,6 +2338,32 @@ Originally allocated`); // `.stack` will add "at ..." after this sentence
   
   
   
+  
+  
+  
+  
+  var __embind_register_function = (name, argCount, rawArgTypesAddr, signature, rawInvoker, fn, isAsync, isNonnullReturn) => {
+      var argTypes = heap32VectorToArray(argCount, rawArgTypesAddr);
+      name = AsciiToString(name);
+      name = getFunctionName(name);
+  
+      rawInvoker = embind__requireFunction(signature, rawInvoker, isAsync);
+  
+      exposePublicSymbol(name, function() {
+        throwUnboundTypeError(`Cannot call ${name} due to unbound types`, argTypes);
+      }, argCount - 1);
+  
+      whenDependentTypesAreResolved([], argTypes, (argTypes) => {
+        var invokerArgsArray = [argTypes[0] /* return value */, null /* no class 'this'*/].concat(argTypes.slice(1) /* actual params */);
+        replacePublicSymbol(name, craftInvokerFunction(name, invokerArgsArray, null /* no class 'this'*/, rawInvoker, fn, isAsync), argCount - 1);
+        return [];
+      });
+    };
+
+  
+  
+  
+  
   /** @suppress {globalThis} */
   var __embind_register_integer = (primitiveType, name, size, minRange, maxRange) => {
       name = AsciiToString(name);
@@ -2365,6 +2391,69 @@ Originally allocated`); // `.stack` will add "at ..." after this sentence
         },
         readValueFromPointer: integerReadValueFromPointer(name, size, minRange !== 0),
         destructorFunction: null, // This type does not need a destructor
+      });
+    };
+
+  
+  
+  
+  
+  
+  
+  
+  
+    /**
+   * @param {number} ptr
+   * @param {string} type
+   */
+  function getValue(ptr, type = 'i8') {
+    if (type.endsWith('*')) type = '*';
+    switch (type) {
+      case 'i1': return HEAP8[ptr];
+      case 'i8': return HEAP8[ptr];
+      case 'i16': return HEAP16[((ptr)>>1)];
+      case 'i32': return HEAP32[((ptr)>>2)];
+      case 'i64': return HEAP64[((ptr)>>3)];
+      case 'float': return HEAPF32[((ptr)>>2)];
+      case 'double': return HEAPF64[((ptr)>>3)];
+      case '*': return HEAPU32[((ptr)>>2)];
+      default: abort(`invalid type for getValue: ${type}`);
+    }
+  }
+  var installIndexedIterator = (proto, sizeMethodName, getMethodName) => {
+      const makeIterator = (size, getValue) => {
+        let index = 0;
+        return {
+          next() {
+            if (index >= size) {
+              return { done: true };
+            }
+            const current = index;
+            index++;
+            const value = getValue(current);
+            return { value, done: false };
+          },
+          [Symbol.iterator]() {
+            return this;
+          },
+        };
+      };
+  
+      if (!proto[Symbol.iterator]) {
+        proto[Symbol.iterator] = function() {
+          const size = this[sizeMethodName]();
+          return makeIterator(size, (i) => this[getMethodName](i));
+        };
+      }
+    };
+  
+  var __embind_register_iterable = (rawClassType, rawElementType, sizeMethodName, getMethodName) => {
+      sizeMethodName = AsciiToString(sizeMethodName);
+      getMethodName = AsciiToString(getMethodName);
+      whenDependentTypesAreResolved([], [rawClassType, rawElementType], (types) => {
+        const classType = types[0];
+        installIndexedIterator(classType.registeredClass.instancePrototype, sizeMethodName, getMethodName);
+        return [];
       });
     };
 
@@ -2401,6 +2490,12 @@ Originally allocated`); // `.stack` will add "at ..." after this sentence
       }, {
         ignoreDuplicateRegistrations: true,
       });
+    };
+
+  
+  var EmValOptionalType = Object.assign({optional: true}, EmValType);;
+  var __embind_register_optional = (rawOptionalType, rawType) => {
+      registerType(rawOptionalType, EmValOptionalType);
     };
 
   
@@ -2848,6 +2943,151 @@ Originally allocated`); // `.stack` will add "at ..." after this sentence
       });
     };
 
+  var emval_methodCallers = [];
+  var emval_addMethodCaller = (caller) => {
+      var id = emval_methodCallers.length;
+      emval_methodCallers.push(caller);
+      return id;
+    };
+  
+  
+  
+  var requireRegisteredType = (rawType, humanName) => {
+      var impl = registeredTypes[rawType];
+      if (undefined === impl) {
+        throwBindingError(`${humanName} has unknown type ${getTypeName(rawType)}`);
+      }
+      return impl;
+    };
+  
+  var emval_lookupTypes = (argCount, argTypes) => {
+      var a = new Array(argCount);
+      for (var i = 0; i < argCount; ++i) {
+        a[i] = requireRegisteredType(HEAPU32[(((argTypes)+(i*4))>>2)],
+                                     `parameter ${i}`);
+      }
+      return a;
+    };
+  
+  
+  
+  var emval_returnValue = (toReturnWire, destructorsRef, handle) => {
+      var destructors = [];
+      var result = toReturnWire(destructors, handle);
+      if (destructors.length) {
+        // void, primitives and any other types w/o destructors don't need to allocate a handle
+        HEAPU32[((destructorsRef)>>2)] = Emval.toHandle(destructors);
+      }
+      return result;
+    };
+  
+  
+  var emval_symbols = {
+  };
+  
+  var getStringOrSymbol = (address) => {
+      var symbol = emval_symbols[address];
+      if (symbol === undefined) {
+        return AsciiToString(address);
+      }
+      return symbol;
+    };
+  var __emval_create_invoker = (argCount, argTypesPtr, kind) => {
+      var GenericWireTypeSize = 8;
+  
+      var [retType, ...argTypes] = emval_lookupTypes(argCount, argTypesPtr);
+      var toReturnWire = retType.toWireType.bind(retType);
+      var argFromPtr = argTypes.map(type => type.readValueFromPointer.bind(type));
+      argCount--; // remove the extracted return type
+  
+      var captures = {'toValue': Emval.toValue};
+      var args = argFromPtr.map((argFromPtr, i) => {
+        var captureName = `argFromPtr${i}`;
+        captures[captureName] = argFromPtr;
+        return `${captureName}(args${i ? '+' + i * GenericWireTypeSize : ''})`;
+      });
+      var functionBody;
+      switch (kind){
+        case 0:
+          functionBody = 'toValue(handle)';
+          break;
+        case 2:
+          functionBody = 'new (toValue(handle))';
+          break;
+        case 3:
+          functionBody = '';
+          break;
+        case 1:
+          captures['getStringOrSymbol'] = getStringOrSymbol;
+          functionBody = 'toValue(handle)[getStringOrSymbol(methodName)]';
+          break;
+      }
+      functionBody += `(${args})`;
+      if (!retType.isVoid) {
+        captures['toReturnWire'] = toReturnWire;
+        captures['emval_returnValue'] = emval_returnValue;
+        functionBody = `return emval_returnValue(toReturnWire, destructorsRef, ${functionBody})`;
+      }
+      functionBody = `return function (handle, methodName, destructorsRef, args) {
+${functionBody}
+}`;
+  
+      var invokerFunction = new Function(Object.keys(captures), functionBody)(...Object.values(captures));
+      var functionName = `methodCaller<(${argTypes.map(t => t.name)}) => ${retType.name}>`;
+      return emval_addMethodCaller(createNamedFunction(functionName, invokerFunction));
+    };
+
+
+  
+  
+  var __emval_invoke = (caller, handle, methodName, destructorsRef, args) => {
+      return emval_methodCallers[caller](handle, methodName, destructorsRef, args);
+    };
+
+  
+  
+  var __emval_run_destructors = (handle) => {
+      var destructors = Emval.toValue(handle);
+      runDestructors(destructors);
+      __emval_decref(handle);
+    };
+
+  var _emscripten_get_now = () => performance.now();
+  
+  var _emscripten_date_now = () => Date.now();
+  
+  var nowIsMonotonic = 1;
+  
+  var checkWasiClock = (clock_id) => clock_id >= 0 && clock_id <= 3;
+  
+  var INT53_MAX = 9007199254740992;
+  
+  var INT53_MIN = -9007199254740992;
+  var bigintToI53Checked = (num) => (num < INT53_MIN || num > INT53_MAX) ? NaN : Number(num);
+  
+  function _clock_time_get(clk_id, ignored_precision, ptime) {
+    ignored_precision = bigintToI53Checked(ignored_precision);
+  
+  
+      if (!checkWasiClock(clk_id)) {
+        return 28;
+      }
+      var now;
+      // all wasi clocks but realtime are monotonic
+      if (clk_id === 0) {
+        now = _emscripten_date_now();
+      } else if (nowIsMonotonic) {
+        now = _emscripten_get_now();
+      } else {
+        return 52;
+      }
+      // "now" is in ms, and wasi times are in ns.
+      var nsec = Math.round(now * 1000 * 1000);
+      HEAP64[((ptime)>>3)] = BigInt(nsec);
+      return 0;
+    ;
+  }
+
   var abortOnCannotGrowMemory = (requestedSize) => {
       abort(`Cannot enlarge memory arrays to size ${requestedSize} bytes (OOM). Either (1) compile with -sINITIAL_MEMORY=X with X higher than the current value ${HEAP8.length}, (2) compile with -sALLOW_MEMORY_GROWTH which allows increasing the size at runtime, or (3) if you want malloc to return NULL (0) instead of this abort, compile with -sABORTING_MALLOC=0`);
     };
@@ -2870,10 +3110,6 @@ Originally allocated`); // `.stack` will add "at ..." after this sentence
       abort('fd_close called without SYSCALLS_REQUIRE_FILESYSTEM');
     };
 
-  var INT53_MAX = 9007199254740992;
-  
-  var INT53_MIN = -9007199254740992;
-  var bigintToI53Checked = (num) => (num < INT53_MIN || num > INT53_MAX) ? NaN : Number(num);
   function _fd_seek(fd, offset, whence, newOffset) {
     offset = bigintToI53Checked(offset);
   
@@ -3038,7 +3274,6 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'addFunction',
   'removeFunction',
   'setValue',
-  'getValue',
   'intArrayFromString',
   'intArrayToString',
   'stringToAscii',
@@ -3091,7 +3326,6 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'getCallstack',
   'convertPCtoSourceLocation',
   'getEnvStrings',
-  'checkWasiClock',
   'wasiRightsToMuslOFlags',
   'wasiOFlagsToMuslOFlags',
   'initRandomFill',
@@ -3156,7 +3390,6 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'stackTrace',
   'getNativeTypeSize',
   'getFunctionArgsName',
-  'requireRegisteredType',
   'createJsInvokerSignature',
   'getEnumValueType',
   'PureVirtualError',
@@ -3165,14 +3398,9 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'getInheritedInstanceCount',
   'getLiveInheritedInstances',
   'enumReadValueFromPointer',
-  'installIndexedIterator',
   'setDelayFunction',
   'validateThis',
   'count_emval_handles',
-  'getStringOrSymbol',
-  'emval_returnValue',
-  'emval_lookupTypes',
-  'emval_addMethodCaller',
 ];
 missingLibrarySymbols.forEach(missingLibrarySymbol)
 
@@ -3218,6 +3446,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'addOnPostRun',
   'freeTableIndexes',
   'functionsInTableMap',
+  'getValue',
   'PATH',
   'PATH_FS',
   'UTF8Decoder',
@@ -3240,6 +3469,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'restoreOldWindowedStyle',
   'UNWIND_CACHE',
   'ExitStatus',
+  'checkWasiClock',
   'flush_NO_FILESYSTEM',
   'emSetImmediate',
   'emClearImmediate_deps',
@@ -3405,6 +3635,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'getTypeName',
   'getFunctionName',
   'heap32VectorToArray',
+  'requireRegisteredType',
   'usesDestructorStack',
   'checkArgCount',
   'getRequiredArgCount',
@@ -3426,6 +3657,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'floatReadValueFromPointer',
   'assertIntegerRange',
   'readPointer',
+  'installIndexedIterator',
   'runDestructors',
   'craftInvokerFunction',
   'embind__requireFunction',
@@ -3458,8 +3690,12 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'emval_freelist',
   'emval_handles',
   'emval_symbols',
+  'getStringOrSymbol',
   'Emval',
+  'emval_returnValue',
+  'emval_lookupTypes',
   'emval_methodCallers',
+  'emval_addMethodCaller',
 ];
 unexportedSymbols.forEach(unexportedRuntimeSymbol);
 
@@ -3570,9 +3806,15 @@ var wasmImports = {
   /** @export */
   _embind_register_float: __embind_register_float,
   /** @export */
+  _embind_register_function: __embind_register_function,
+  /** @export */
   _embind_register_integer: __embind_register_integer,
   /** @export */
+  _embind_register_iterable: __embind_register_iterable,
+  /** @export */
   _embind_register_memory_view: __embind_register_memory_view,
+  /** @export */
+  _embind_register_optional: __embind_register_optional,
   /** @export */
   _embind_register_std_string: __embind_register_std_string,
   /** @export */
@@ -3583,6 +3825,16 @@ var wasmImports = {
   _embind_register_value_object_field: __embind_register_value_object_field,
   /** @export */
   _embind_register_void: __embind_register_void,
+  /** @export */
+  _emval_create_invoker: __emval_create_invoker,
+  /** @export */
+  _emval_decref: __emval_decref,
+  /** @export */
+  _emval_invoke: __emval_invoke,
+  /** @export */
+  _emval_run_destructors: __emval_run_destructors,
+  /** @export */
+  clock_time_get: _clock_time_get,
   /** @export */
   emscripten_resize_heap: _emscripten_resize_heap,
   /** @export */

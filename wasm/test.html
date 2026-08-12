@@ -9,25 +9,29 @@
 
     <script src="app.js"></script>
     <script>
-        // this waits for the compiled c++ module to finish loading in the browser.
         Module.onRuntimeInitialized = function() {
             const output = document.getElementById("output");
-
-            // this creates a real instance of your c++ webLogAnalyzer class.
             const analyzer = new Module.WebLogAnalyzer();
 
-            // this calls your actual compiled c++ processConnection function.
-            analyzer.processConnection("192.168.1.10", "2026-08-10 10:00", 443, false);
-            analyzer.processConnection("192.168.1.10", "2026-08-10 10:05", 22, true);
+            analyzer.processConnection("192.168.1.10", "2026-08-12 10:00", 443, false);
+            analyzer.processConnection("192.168.1.10", "2026-08-12 10:05", 22, true);
+            analyzer.processConnection("10.0.0.5", "2026-08-12 11:00", 80, false);
 
-            const result = analyzer.lookupIP("192.168.1.10");
-            const count = analyzer.getTrackedCount();
+            const riskReport = analyzer.getRiskReport();
+            let riskReportHTML = "<h3>Risk Report</h3>";
+            for (let i = 0; i < riskReport.size(); i++) {
+                const record = riskReport.get(i);
+                riskReportHTML += record.ip + " - risk: " + record.riskScore + "<br>";
+            }
 
-            output.innerHTML =
-                "IP: " + result.ip + "<br>" +
-                "Risk Score: " + result.riskScore + "<br>" +
-                "Attempt Count: " + result.attemptCount + "<br>" +
-                "Tracked Count: " + count;
+            const testResults = Module.runTestSuite();
+            let testResultsHTML = "<h3>Test Suite</h3>";
+            for (let i = 0; i < testResults.size(); i++) {
+                const result = testResults.get(i);
+                testResultsHTML += result.name + ": " + (result.passed ? "PASS" : "FAIL") + "<br>";
+            }
+
+            output.innerHTML = riskReportHTML + testResultsHTML;
         };
     </script>
 </body>

@@ -199,6 +199,25 @@ void AVLTree::inOrderPrint() {
     inOrderHelper(root);
 }
 
+// this function walks the tree in order and adds each record to a list.
+// this is the same idea as inOrderHelper, but instead of printing,
+// it saves the results so they can be used elsewhere, like in a web page.
+void AVLTree::inOrderCollectHelper(AVLNode* node, std::vector<IPRecord*>& result) {
+    if (node == nullptr) {
+        return;
+    }
+    inOrderCollectHelper(node->left, result);
+    result.push_back(node->record);
+    inOrderCollectHelper(node->right, result);
+}
+
+// public function that returns every record in order, lowest to highest risk.
+std::vector<IPRecord*> AVLTree::inOrderList() {
+    std::vector<IPRecord*> result;
+    inOrderCollectHelper(root, result);
+    return result;
+}
+
 // this function searches the tree for a node matching the given risk score.
 bool AVLTree::containsHelper(AVLNode* node, int riskScore) {
     if (node == nullptr) {

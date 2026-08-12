@@ -2,6 +2,7 @@
 #define AVLTREE_HPP
 
 #include "IPRecord.hpp"
+#include <vector>
 
 // this struct is a single node in the avl tree.
 // it holds a pointer to the ip record instead of copying its data.
@@ -41,6 +42,8 @@ private:
 
     // recursive helper used by contains to search the tree.
     bool containsHelper(AVLNode* node, int riskScore);
+    // recursive helper used by inOrderList to collect records into a vector.
+    void inOrderCollectHelper(AVLNode* node, std::vector<IPRecord*>& result);
 
 public:
     // constructor starts with an empty tree.
@@ -57,6 +60,10 @@ public:
 
     // this function prints the tree in order, from lowest to highest risk.
     void inOrderPrint();
+
+    // this function returns every record in order, lowest to highest risk.
+    // used by the web version to display the risk report as a table.
+    std::vector<IPRecord*> inOrderList();
 
     // this function checks if a given risk score exists in the tree.
     bool contains(int riskScore);

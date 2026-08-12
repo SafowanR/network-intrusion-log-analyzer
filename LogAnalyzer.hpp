@@ -5,6 +5,7 @@
 #include <string>
 #include "IPRecord.hpp"
 #include "AVLTree.hpp"
+#include <vector>
 
 // this class is the main hub that ties the hash table and avl tree together.
 // it owns all the ip record objects and manages their lifetime.
@@ -28,6 +29,10 @@ public:
 
     // this function prints all ips ranked by risk score using the avl tree.
     void printRiskReport();
+
+    // this function returns every ip ranked by risk score as a list.
+    // this is what the web version calls instead of printing to a console.
+    std::vector<IPRecord*> getRiskReportList();
 
     // this function returns how many unique ips are being tracked.
     int getTrackedCount();

@@ -61,6 +61,12 @@ void LogAnalyzer::printRiskReport() {
     riskTree.inOrderPrint();
 }
 
+// this function returns every ip ranked by risk score using the avl tree.
+// same result as printRiskReport, just returned as a list instead of printed.
+std::vector<IPRecord*> LogAnalyzer::getRiskReportList() {
+    return riskTree.inOrderList();
+}
+
 // this function returns how many unique ips are currently tracked.
 int LogAnalyzer::getTrackedCount() {
     return ipTable.size();
