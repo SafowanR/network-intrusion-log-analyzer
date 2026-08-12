@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Network Intrusion Log Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,300..800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <script type="module" crossorigin src="/network-intrusion-log-analyzer/assets/index-CHjqeUrY.js"></script>
+  <link rel="stylesheet" crossorigin href="/network-intrusion-log-analyzer/assets/index-DSGpqSp_.css">
+</head>
+<body>
+  <canvas id="matrixCanvas"></canvas>
+    <div class="container">
+        <h1>Network Intrusion Log Analyzer</h1>
+        <p class="subtitle">Powered by real, compiled C++ running as WebAssembly</p>
+
+        <!-- kpi stat cards, real material 3 elevated cards with live data. -->
+        <div class="stat-row">
+    <div class="stat-card-mini">
+        <md-elevation></md-elevation>
+        <span class="material-symbols-outlined">dns</span>
+        <div class="stat-mini-number" id="statTrackedIPs">0</div>
+        <div class="stat-mini-label">Tracked IPs</div>
+    </div>
+    <div class="stat-card-mini">
+        <md-elevation></md-elevation>
+        <span class="material-symbols-outlined">warning</span>
+        <div class="stat-mini-number" id="statFlaggedCount">0</div>
+        <div class="stat-mini-label">Flagged Connections</div>
+    </div>
+    <div class="stat-card-mini">
+        <md-elevation></md-elevation>
+        <span class="material-symbols-outlined">speed</span>
+        <div class="stat-mini-number" id="statLatency">–</div>
+        <div class="stat-mini-label">Last Processing Time (ms)</div>
+    </div>
+</div>
+
+        <!-- this is google's own material design tab bar component. -->
+        <md-tabs id="mainTabs">
+            <md-primary-tab id="tab-add">Add Connection</md-primary-tab>
+            <md-primary-tab id="tab-lookup">Look Up IP</md-primary-tab>
+            <md-primary-tab id="tab-risk">Risk Report</md-primary-tab>
+            <md-primary-tab id="tab-count">Tracked Count</md-primary-tab>
+            <md-primary-tab id="tab-tests">Test Suite</md-primary-tab>
+            <md-primary-tab id="tab-perf">Performance</md-primary-tab>
+        </md-tabs>
+
+        <div class="panel-container">
+            <!-- add connection panel -->
+            <div id="panel-add" class="panel">
+                <md-outlined-text-field id="addIp" label="IP Address"></md-outlined-text-field>
+                <md-outlined-text-field id="addTimestamp" label="Timestamp" placeholder="2026-08-12 10:00"></md-outlined-text-field>
+                <md-outlined-text-field id="addPort" label="Port" type="number"></md-outlined-text-field>
+                <div class="checkbox-row">
+                    <md-checkbox id="addFlagged"></md-checkbox>
+                    <label for="addFlagged">Flagged as suspicious</label>
+                </div>
+                <md-filled-button id="addSubmitBtn">Add Connection</md-filled-button>
+                <div id="addMessage" class="message"></div>
+            </div>
+
+            <!-- look up ip panel -->
+            <div id="panel-lookup" class="panel" style="display: none;">
+                <md-outlined-text-field id="lookupIp" label="Enter IP address to look up"></md-outlined-text-field>
+                <md-filled-button id="lookupBtn">Look Up</md-filled-button>
+                <div id="lookupResult" class="result-card"></div>
+            </div>
+
+            <!-- risk report panel -->
+            <div id="panel-risk" class="panel" style="display: none;">
+                <table id="riskTable">
+                    <thead>
+                        <tr><th>IP Address</th><th>Risk Score</th><th>Attempts</th></tr>
+                    </thead>
+                    <tbody id="riskTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- tracked count panel -->
+            <div id="panel-count" class="panel" style="display: none;">
+                <div class="stat-card">
+                    <div id="countNumber" class="stat-number">0</div>
+                    <div class="stat-label">Tracked IP Addresses</div>
+                </div>
+            </div>
+
+            <!-- test suite panel -->
+            <div id="panel-tests" class="panel" style="display: none;">
+                <md-filled-button id="runTestsBtn">Run Test Suite</md-filled-button>
+                <table id="testTable" style="display: none;">
+                    <thead>
+                         <tr><th>Test</th><th>Result</th></tr>
+                    </thead>
+                         <tbody id="testResultsBody"></tbody>
+            </table>
+
+            </div>
+
+            <!-- performance panel -->
+            <div id="panel-perf" class="panel" style="display: none;">
+                <p>Times inserting and looking up 1,000 ip addresses in both structures, using the real compiled C++ code.</p>
+                <md-filled-button id="runPerfBtn">Run Performance Comparison</md-filled-button>
+                <table id="perfTable" style="display: none;">
+                    <thead>
+                        <tr><th>Operation</th><th>Hash Table (us)</th><th>AVL Tree (us)</th></tr>
+                    </thead>
+                    <tbody id="perfTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
